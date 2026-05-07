@@ -1454,7 +1454,7 @@
         function getItemConfig(item) {
             // Merge defaults with any user overrides saved in D.records[item.id].config
             const cfg = (D.records[item.id] && D.records[item.id].config) || {};
-            return { intervalKm: cfg.intervalKm ?? item.interval, intervalDays: cfg.intervalDays ?? null, intervalType: cfg.intervalType ?? 'km' };
+            return { intervalKm: cfg.intervalKm ?? item.interval, intervalDays: cfg.intervalDays ?? null, intervalType: cfg.intervalType ?? 'km', nextDate: cfg.nextDate ?? null };
         }
         function getStatus(item) {
             const h = getHistory(item); if (!h.length) return 'none';
@@ -1469,11 +1469,15 @@
             }
             // Time check
             if (cfg.intervalType === 'dias' || cfg.intervalType === 'ambos') {
-                if (cfg.intervalDays && last.date) {
-                    const elapsed = daysSince(last.date);
-                    const remDays = cfg.intervalDays - elapsed;
+                let remDays = null;
+                if (cfg.nextDate) {
+                    remDays = Math.ceil((new Date(cfg.nextDate + 'T12:00:00').getTime() - Date.now()) / 86400000);
+                } else if (cfg.intervalDays && last.date) {
+                    remDays = cfg.intervalDays - daysSince(last.date);
+                }
+                if (remDays !== null) {
                     if (remDays <= 0) worstStatus = 'due';
-                    else if (remDays <= cfg.intervalDays * 0.2 && worstStatus !== 'due') worstStatus = 'warn';
+                    else if (remDays <= (cfg.intervalDays || 30) * 0.2 && worstStatus !== 'due') worstStatus = 'warn';
                 }
             }
             return worstStatus;
@@ -1487,10 +1491,14 @@
             return null;
         }
         function getRemainingDays(item) {
-            const h = getHistory(item); if (!h.length) return null;
-            const last = h[h.length - 1]; const cfg = getItemConfig(item);
-            if ((cfg.intervalType === 'dias' || cfg.intervalType === 'ambos') && cfg.intervalDays && last.date) {
-                return cfg.intervalDays - daysSince(last.date);
+            const cfg = getItemConfig(item);
+            if (cfg.intervalType === 'dias' || cfg.intervalType === 'ambos') {
+                if (cfg.nextDate) {
+                    return Math.ceil((new Date(cfg.nextDate + 'T12:00:00').getTime() - Date.now()) / 86400000);
+                }
+                const h = getHistory(item); if (!h.length) return null;
+                const last = h[h.length - 1];
+                if (cfg.intervalDays && last.date) return cfg.intervalDays - daysSince(last.date);
             }
             return null;
         }
@@ -1667,14 +1675,17 @@
 <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${fillColor}"></div></div>
 <div class="card-body${isOpen ? ' open' : ''}"><div class="card-body-inner">
 <div style="margin-top:12px">
-<div class="section-title" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">¿Cuándo se hace?
-<div class="seg-control" style="width:auto;flex:0" data-interval-type="${item.id}">
+<div class="section-title" style="margin-bottom:6px">¿Cuándo se hace?</div>
+<div class="seg-control" style="margin-bottom:10px" data-interval-type="${item.id}">
 <div class="seg-btn${cfg.intervalType === 'km' ? ' active' : ''}" data-val="km">Por km</div>
 <div class="seg-btn${cfg.intervalType === 'dias' ? ' active' : ''}" data-val="dias">Por tiempo</div>
 <div class="seg-btn${cfg.intervalType === 'ambos' ? ' active' : ''}" data-val="ambos">Ambos</div>
-</div></div>
+</div>
 <div class="form-row" id="cfg-km-${item.id}" style="${cfg.intervalType === 'dias' ? 'display:none' : ''}"><div class="form-group"><label>Intervalo (km)</label><input type="number" class="form-input mono" value="${cfg.intervalKm}" data-save-cfg-km="${item.id}"></div></div>
-<div class="form-row" id="cfg-dias-${item.id}" style="${cfg.intervalType === 'km' ? 'display:none' : ''}"><div class="form-group"><label>Intervalo (días)</label><input type="number" class="form-input mono" value="${cfg.intervalDays || ''}" placeholder="ej. 180" data-save-cfg-dias="${item.id}"></div></div>
+<div class="form-row" id="cfg-dias-${item.id}" style="${cfg.intervalType === 'km' ? 'display:none' : ''}">
+<div class="form-group"><label>Intervalo (días)</label><input type="number" class="form-input mono" value="${cfg.intervalDays || ''}" placeholder="ej. 180" data-save-cfg-dias="${item.id}"></div>
+<div class="form-group"><label>Próxima fecha 📅</label><input type="date" class="form-input" value="${cfg.nextDate || ''}" data-save-cfg-nextdate="${item.id}"></div>
+</div>
 <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
 <div class="form-row">
 <div class="form-group"><label>Fecha</label><input type="date" class="form-input" value="${rec ? rec.date : today()}" data-field="date"></div>
@@ -1881,22 +1892,21 @@ ${rec ? `<div class="form-row"><button class="btn btn-primary" id="fuel-update-b
             const seg = t.closest('.seg-btn');
             if (seg) {
                 const parent = seg.parentElement;
-                parent.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active')); seg.classList.add('active');
-                // If it's an interval-type control, save config and update visibility
+                // If it's an interval-type control, save config and fully re-render
                 const itemId = parent.dataset.intervalType;
                 if (itemId) {
                     const val = seg.dataset.val;
                     if (!D.records[itemId]) D.records[itemId] = { history: [] };
                     if (!D.records[itemId].config) D.records[itemId].config = {};
                     D.records[itemId].config.intervalType = val;
+                    expandedCards[itemId] = true; // keep card open
                     save();
-                    // Show/hide km and days fields
-                    const cfgKm = document.getElementById('cfg-km-' + itemId);
-                    const cfgDias = document.getElementById('cfg-dias-' + itemId);
-                    const nextKmField = parent.closest('.card-body-inner')?.querySelector('[data-field="nextKm"]')?.closest('.form-group');
-                    if (cfgKm) cfgKm.style.display = val === 'dias' ? 'none' : '';
-                    if (cfgDias) cfgDias.style.display = val === 'km' ? 'none' : '';
+                    renderMantenimiento(); // re-render so ALL fields (incl. nextKm) update correctly
+                    return;
                 }
+                // Otherwise it's an action-type or category selector — just toggle active class
+                parent.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+                seg.classList.add('active');
                 return;
             }
             // Save maintenance record
@@ -2090,6 +2100,14 @@ ${rec ? `<div class="form-row"><button class="btn btn-primary" id="fuel-update-b
                 if (!D.records[itemIdDias]) D.records[itemIdDias] = { history: [] };
                 if (!D.records[itemIdDias].config) D.records[itemIdDias].config = {};
                 D.records[itemIdDias].config.intervalDays = v; save();
+            }
+            // Next date config (calendar picker)
+            const itemIdNextDate = e.target.dataset.saveCfgNextdate;
+            if (itemIdNextDate) {
+                const v = e.target.value;
+                if (!D.records[itemIdNextDate]) D.records[itemIdNextDate] = { history: [] };
+                if (!D.records[itemIdNextDate].config) D.records[itemIdNextDate].config = {};
+                D.records[itemIdNextDate].config.nextDate = v || null; save();
             }
         });
 
