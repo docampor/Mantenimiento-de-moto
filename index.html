@@ -1957,7 +1957,7 @@ ${rec ? `<div class="form-row"><button class="btn btn-primary" id="fuel-update-b
                 const itemId = updateRec.dataset.updateRecord; const card = updateRec.closest('.card');
                 const date = card.querySelector('[data-field="date"]').value;
                 const km = parseInt(card.querySelector('[data-field="km"]').value);
-                const nextKm = parseInt(card.querySelector('[data-field="nextKm"]').value);
+                const nextKm = parseInt(card.querySelector('[data-field="nextKm"]')?.value) || 0;
                 const actionType = card.querySelector('[data-field="actionType"] .seg-btn.active')?.dataset.val;
                 const costParts = parseFloat(card.querySelector('[data-field="costParts"]').value);
                 const costLabor = parseFloat(card.querySelector('[data-field="costLabor"]').value);
