@@ -1667,9 +1667,11 @@
                 const nextKmDefault = rec ? rec.nextKm : last ? (last.nextKm || last.km + cfg.intervalKm) : D.km + cfg.intervalKm;
                 html += `<div class="card" id="card-${item.id}">
 <div class="card-header" data-toggle="${item.id}">
+<div style="flex:1;min-width:0">
 <span class="name">${item.name}</span>
+${last ? `<div style="font-size:11px;color:var(--muted);margin-top:2px;font-weight:500">${last.actionType || '—'} · ${fmtDateShort(last.date)}</div>` : ''}
+</div>
 <span class="badge ${s}">${statusLabel(s)}</span>
-<span class="remaining-text">${formatRemaining(item)}</span>
 <span class="chevron${isOpen ? ' open' : ''}">${ICO.chevron}</span>
 </div>
 <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${fillColor}"></div></div>
@@ -1917,7 +1919,7 @@ ${rec ? `<div class="form-row"><button class="btn btn-primary" id="fuel-update-b
                 const date = card.querySelector('[data-field="date"]').value || today();
                 const km = parseInt(card.querySelector('[data-field="km"]').value) || D.km;
                 const nextKm = parseInt(card.querySelector('[data-field="nextKm"]').value) || 0;
-                const actionType = card.querySelector('.seg-btn.active')?.dataset.val || 'Revisar';
+                const actionType = card.querySelector('[data-field="actionType"] .seg-btn.active')?.dataset.val || 'Revisar';
                 const costParts = parseFloat(card.querySelector('[data-field="costParts"]').value) || 0;
                 const costLabor = parseFloat(card.querySelector('[data-field="costLabor"]').value) || 0;
                 const notes = card.querySelector('[data-field="notes"]').value || '';
@@ -1956,7 +1958,7 @@ ${rec ? `<div class="form-row"><button class="btn btn-primary" id="fuel-update-b
                 const date = card.querySelector('[data-field="date"]').value;
                 const km = parseInt(card.querySelector('[data-field="km"]').value);
                 const nextKm = parseInt(card.querySelector('[data-field="nextKm"]').value);
-                const actionType = card.querySelector('.seg-btn.active')?.dataset.val;
+                const actionType = card.querySelector('[data-field="actionType"] .seg-btn.active')?.dataset.val;
                 const costParts = parseFloat(card.querySelector('[data-field="costParts"]').value);
                 const costLabor = parseFloat(card.querySelector('[data-field="costLabor"]').value);
                 const notes = card.querySelector('[data-field="notes"]').value;
